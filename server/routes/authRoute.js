@@ -4,7 +4,7 @@ import { registerSchema, loginSchema, validate } from '../utils/Validate.js';
 
 const router = express.Router();
 
-// @ENDPOINT http://localhost:5000/api/register
+// @ENDPOINT http://localhost:5000/api
 router.post('/register', validate(registerSchema), register);
 router.post('/login', validate(loginSchema), login);
 router.post('/current-user', currentUser);

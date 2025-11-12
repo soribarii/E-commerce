@@ -1,4 +1,5 @@
 import prisma from '../config/prisma.js'
+import createError from '../utils/createError.js'
 
 export const create = async (req, res, next) => {
   try {
@@ -20,7 +21,7 @@ export const create = async (req, res, next) => {
         },
       }
     })
-    res.send('Hello create product')
+    res.send(product)
   } catch (error) {
     next(error)
   }
@@ -28,8 +29,37 @@ export const create = async (req, res, next) => {
 
 export const list = async (req, res, next) => {
   try {
-    // const { count } = req.params;
-    res.send('Hello list product')
+    const { count } = req.params;
+    const products = await prisma.product.findMany({
+      take: parseInt(count),
+      orderBy: { 
+        createdAt: "desc" 
+      },
+      include: {
+        category: true,
+        images: true
+      }
+    })
+    res.send(products)
+  } catch (error) {
+    next(error)
+  }
+};
+
+export const read = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const products = await prisma.product.findFirst({
+      where: {
+        id: Number(id)
+      },
+      include: {
+        category: true,
+        images: true
+      }
+    })
+    console.log(id)
+    res.send(products)
   } catch (error) {
     next(error)
   }
@@ -37,8 +67,37 @@ export const list = async (req, res, next) => {
 
 export const update = async (req, res, next) => {
   try {
-    // const { id } = req.params;
-    res.send('Hello update product')
+    const { id } = req.params;
+    const { title, description, price, quantity, categoryId, images } = req.body;
+
+    // clear images
+    await prisma.image.deleteMany({
+      where: {
+        productId: Number(id)
+      }
+    })
+
+    const product = await prisma.product.update({
+      where: {
+        id: Number(id)
+      },
+      data: {
+        title: title,
+        description: description,
+        price: parseFloat(price),
+        quantity: parseInt(quantity),
+        categoryId: parseInt(categoryId),
+        images: {
+          create: images.map((item) => ({
+            asset_id: item.asset_id,
+            public_id: item.public_id,
+            url: item.url,
+            secure_url: item.secure_url
+          }))
+        },
+      }
+    })
+    res.send(product)
   } catch (error) {
     next(error)
   }
@@ -46,8 +105,14 @@ export const update = async (req, res, next) => {
 
 export const remove = async (req, res, next) => {
   try {
-    // const { id } = req.params;
-    res.send('Hello remove product')
+    const { id } = req.params;
+    
+    await prisma.product.delete({
+      where: {
+        id: Number(id)
+      }
+    })
+    res.send('Delete successfully!')
   } catch (error) {
     next(error)
   }
@@ -55,17 +120,97 @@ export const remove = async (req, res, next) => {
 
 export const listBy = async (req, res, next) => {
   try {
-
-    res.send('Hello listBy product')
+    const { sort, order, limit } = req.body;
+    console.log(sort, order, limit);
+    const products = await prisma.product.findMany({
+      take: limit,
+      orderBy: { [sort]: order },
+      include: {
+        category: true
+      }
+    })
+    res.send(products)
   } catch (error) {
     next(error)
   }
 };
 
+const handleQuery = async (req, res, query) => {
+  try {
+    const products = await prisma.product.findMany({
+      where: {
+        title: {
+          contains: query,
+        }
+      },
+      include: {
+        category: true,
+        images: true
+      }
+    })
+    res.send(products)
+  } catch (error) {
+    createError(500, 'HandleQuery Error');
+  }
+};
+
+const handlePrice = async (req, res, priceRange) => {
+  try {
+    const products = await prisma.product.findMany({
+      where: {
+        price: {
+          gte: priceRange[0],
+          lte: priceRange[1]
+        }
+      },
+      include: {
+        category: true,
+        images: true
+      }
+    })
+    res.send(products)
+  } catch (error) {
+    createError(500, 'HandlePrice Error')
+  }
+}
+
+const handleCategory = async (req, res, categoryId) => {
+  try {
+    const products = await prisma.product.findMany({
+      where: {
+        categoryId: {
+          in: categoryId.map((id) => Number(id))
+        }
+      },
+      include: {
+        category: true,
+        images: true
+      }
+    })
+    res.send(products)
+  } catch (error) {
+    createError(500, 'HandleCategory Error')
+  }
+}
+
 export const searchFilters = async (req, res, next) => {
   try {
+    const { query, category, price} = req.body;
 
-    res.send('Hello searchFilters product')
+    if(query) {
+      console.log('query => ', query);
+      await handleQuery(req, res, query)
+    }
+    if(category) {
+      console.log('category => ', category);
+      await handleCategory(req, res, category)
+    }
+    if(price) {
+      console.log('price => ', price);
+      await handlePrice(req, res, price);
+    }
+
+    // res.send('Hello searchFilters product')
   } catch (error) {
     next(error)
   }
